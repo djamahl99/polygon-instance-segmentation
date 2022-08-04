@@ -59,7 +59,6 @@ def edge_loss(vertices):
 def main():
     batch_size = 16
     epochs = 20
-    lr = 1e-5
     load_model = False
 
     ####################################################################################
@@ -84,7 +83,6 @@ def main():
 
     model_save_name = f"{model._get_name()}.pt"
     writer.add_text("Model Name", model._get_name())
-    writer.add_scalar("Learning Rate", lr)
     writer.add_scalar("Epochs", epochs)
 
     if os.path.exists(model_save_name) and load_model:
@@ -95,8 +93,8 @@ def main():
     ####################################################################################
     # optimizers and lr scheduling ######################################################
 
-    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     # optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)  # goal: maximize Dice score
     # scheduler = torch.optim.lr_scheduler.St

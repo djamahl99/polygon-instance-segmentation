@@ -227,8 +227,8 @@ class resnet(_FPN):
     _FPN.__init__(self, classes, class_agnostic)
 
   def _init_modules(self):
-    resnet = resnet101(pretrained=True)
-    # resnet = resnet18(pretrained=True)
+    # resnet = resnet101(pretrained=True)
+    resnet = resnet18(pretrained=True)
 
     # if self.pretrained == True:
       # print("Loading pretrained weights from %s" %(self.model_path))
@@ -242,7 +242,8 @@ class resnet(_FPN):
     self.RCNN_layer4 = nn.Sequential(resnet.layer4)
 
     # Top layer
-    self.RCNN_toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0)  # reduce channel
+    # self.RCNN_toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0)  # reduce channel
+    self.RCNN_toplayer = nn.Conv2d(512, 256, kernel_size=1, stride=1, padding=0)  # reduce channel
 
     # Smooth layers
     self.RCNN_smooth1 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
@@ -250,9 +251,9 @@ class resnet(_FPN):
     self.RCNN_smooth3 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
 
     # Lateral layers
-    self.RCNN_latlayer1 = nn.Conv2d(1024, 256, kernel_size=1, stride=1, padding=0)
-    self.RCNN_latlayer2 = nn.Conv2d( 512, 256, kernel_size=1, stride=1, padding=0)
-    self.RCNN_latlayer3 = nn.Conv2d( 256, 256, kernel_size=1, stride=1, padding=0)
+    self.RCNN_latlayer1 = nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
+    self.RCNN_latlayer2 = nn.Conv2d( 128, 256, kernel_size=1, stride=1, padding=0)
+    self.RCNN_latlayer3 = nn.Conv2d( 64, 256, kernel_size=1, stride=1, padding=0)
 
     # ROI Pool feature downsampling
     self.RCNN_roi_feat_ds = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
@@ -263,12 +264,6 @@ class resnet(_FPN):
       nn.Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0),
       nn.ReLU(True)
       )
-
-    self.RCNN_cls_score = nn.Linear(1024, self.n_classes)
-    if self.class_agnostic:
-      self.RCNN_bbox_pred = nn.Linear(1024, 4)
-    else:
-      self.RCNN_bbox_pred = nn.Linear(1024, 4 * self.n_classes)
 
     # Fix blocks
     for p in self.RCNN_layer0[0].parameters(): p.requires_grad=False
