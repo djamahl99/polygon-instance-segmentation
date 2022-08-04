@@ -10,6 +10,8 @@ Unfortunately the accompanying code for the paper has been taken down. The paper
 
 ![PolyTransform Architecture](docs/polytransform-architecture.png "PolyTransform Architecture")
 
+Currently attempting a simpler task of predicting vertices given an objects mask.
+
 ### Progress
 
 - [x] ResNet FPN
@@ -22,6 +24,7 @@ Unfortunately the accompanying code for the paper has been taken down. The paper
   - Influenced by ViT, without positional encoding (as added by CoordConv)
 - [ ] Contour Algorithm
   - Would it be possible to use a CNN?
+- [ ] Train to predict mask vertices 
 
 ## Instance Segmentation Transformer
 
