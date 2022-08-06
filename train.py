@@ -32,34 +32,54 @@ from visualize.plot_positions import plot_mask
 writer = SummaryWriter()
 
 def edge_len(v1, v2):
-    # print("edge len", v1, v2)
     return torch.sqrt(torch.sum((v1 - v2)**2))
 
-def edge_loss(vertices):
+def edge_loss(vertices, lengths):
     batch_total = 0
 
-    # print("edge loss shape", vertices.shape)
     for batch_num in range(vertices.shape[0]):
         b_verts = vertices[batch_num]
+        batch_length = lengths[batch_num]
         total_dist = 0
-        for edge_num in range(b_verts.shape[0]):
-            # print(f"cdist verts for {edge_num} - ", b_verts[edge_num - 1], b_verts[edge_num])
+
+        for edge_num in range(min(b_verts.shape[0], batch_length)):
             total_dist += edge_len(b_verts[edge_num - 1], b_verts[edge_num]) # negative okay, want to add distance from last -> first vertex 
 
         ave_dist = total_dist / b_verts.shape[0]
 
         total_variance = 0
-        for edge_num in range(b_verts.shape[0]):
+        for edge_num in range(min(b_verts.shape[0], batch_length)):
             total_variance += torch.square(edge_len(b_verts[edge_num - 1], b_verts[edge_num]) - ave_dist) 
 
-        batch_total += torch.sqrt(total_variance / b_verts.shape[0])
+        batch_total += torch.sqrt(total_variance / min(b_verts.shape[0], batch_length))
 
     return batch_total
 
+def perimeter_length_loss(pred_vertices, true_vertices, lengths):
+    batch_total = 0
+    batch_n = 0
+
+    for batch_num in range(pred_vertices.shape[0]):
+        pred_verts = pred_vertices[batch_num]
+        true_verts = true_vertices[batch_num]
+        batch_length = lengths[batch_num]
+        batch_n += batch_length
+
+        total_dist_pred = 0
+        total_dist_true = 0
+
+        for edge_num in range(min(pred_verts.shape[0], batch_length)):
+            total_dist_pred += edge_len(pred_verts[edge_num - 1], pred_verts[edge_num]) # negative okay, want to add distance from last -> first vertex 
+            total_dist_true += edge_len(true_verts[edge_num - 1], true_verts[edge_num]) # negative okay, want to add distance from last -> first vertex 
+
+        batch_total += (total_dist_pred - total_dist_true) ** 2
+
+    return batch_total / batch_n
+
 def main():
     batch_size = 16
-    epochs = 20
-    load_model = False
+    epochs = 100
+    load_model = True
 
     ####################################################################################
     # load dataset #####################################################################
@@ -93,14 +113,12 @@ def main():
     ####################################################################################
     # optimizers and lr scheduling ######################################################
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    # optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=2)  # goal: maximize Dice score
-    # scheduler = torch.optim.lr_scheduler.St
-    # grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    # optimizer = torch.optim.RMSprop(model.parameters(), lr=1e-4, weight_decay=1e-8, momentum=0.9)
 
     criterion_chamfer = ChamferDistance().to(device)
+    criterion_mse = nn.MSELoss().to(device)
 
     global_step = 0
 
@@ -109,24 +127,33 @@ def main():
         running_loss = 0
         running_chamfer = 0
         running_edge = 0
+        running_perimeter = 0
+        running_mse = 0
         
         with tqdm(desc=f"EPOCH {epoch}", unit='img') as pbar:
-            for in_imgs, true_vertices in tqdm(train_loader, unit='batch'):
+            for in_imgs, true_vertices, length, params, contours, masks in tqdm(train_loader, unit='batch'):
                 in_imgs = in_imgs.to(device=device, dtype=torch.float32)
-                true_vertices = true_vertices.to(device=device, dtype=torch.float32)
-                
-                pred_vertices = model(in_imgs)
+                true_vertices = true_vertices.to(device=device, dtype=torch.float32).reshape(in_imgs.shape[0], -1, 2)
+                params = params.to(device, dtype=torch.float32)
+                contours = contours.to(device)
+                masks = masks.to(device)
+    
+                pred_vertices = model(in_imgs, contours=contours, mask=masks)
 
                 # plot_mask(in_imgs)
 
                 loss_chamfer = criterion_chamfer(pred_vertices.reshape(in_imgs.shape[0], -1, 2), true_vertices.reshape(in_imgs.shape[0], -1, 2))
-                loss_edges = edge_loss(pred_vertices)
+                loss_edges = edge_loss(pred_vertices, length)
+                loss_perimeter = perimeter_length_loss(pred_vertices, true_vertices, length)
+                # loss_mse = criterion_mse(pred_vertices, true_vertices)
 
-                loss = loss_chamfer + loss_edges
+                loss = loss_chamfer + loss_edges + loss_perimeter# + loss_mse
 
                 running_loss += loss.item()
                 running_chamfer += loss_chamfer.item()
                 running_edge += loss_edges.item()
+                running_perimeter += loss_perimeter.item()
+                running_mse += 0#loss_mse.item()
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -137,7 +164,7 @@ def main():
 
                 pbar.update(in_imgs.shape[0])
 
-                pbar.set_postfix(**{'loss(ave)': running_loss/n, 'loss(chamfer)': running_chamfer/n, 'loss(edge)': running_edge/n})
+                pbar.set_postfix(**{'loss(ave)': running_loss/n, 'loss(chamfer)': running_chamfer/n, 'loss(edge)': running_edge/n, 'loss(perimeter)': running_perimeter/n, 'loss(mse-sample)': running_mse/n})
 
         # save_epoch_images(epoch, in_imgs, pred_len, pred_pos, true_pos, true_len, pred_angle=None, true_angle=None)
         torch.save(model, model_save_name)

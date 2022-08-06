@@ -5,3 +5,6 @@ affine_grid_experiment.py
 *.pyc
 runs/*
 key_pts/*
+_PolyTransform.pt
+ResNetUNet.pt
+PolyTransform.pt

@@ -23,7 +23,10 @@ Currently attempting a simpler task of predicting vertices given an objects mask
 - [x] Transformer?
   - Influenced by ViT, without positional encoding (as added by CoordConv)
 - [ ] Contour Algorithm
+  - Paper references *Topological structural analysis of digitized binary images by border following* found it is implemented in OpenCV as FindContours
   - Would it be possible to use a CNN?
+    - benefit of being differentiable, probably faster
+  - or, predict circle center and radius for initialization 
 - [ ] Train to predict mask vertices 
 
 ## Instance Segmentation Transformer
